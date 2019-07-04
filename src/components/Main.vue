@@ -200,7 +200,8 @@ export default {
           this.$emit("input", data[this.resUrlKey]);
           this.$emit("uploadSuccess", data, this.name);
         }
-      }).catch(res=>{
+      }).catch(res => {
+          console.log(res);
           this.$emit("uploadFailure",this.name);
       });
     },
