@@ -32,25 +32,31 @@
       <p v-html="tip"></p>
     </div>
     <el-dialog title="裁剪图片" :visible.sync="visible" width="750px" :append-to-body="true">
+      <h2>裁剪图片</h2>
       <div class="cropper-box">
-        <vueCropper
+        <vue-cropper
           ref="cropper"
-          :img="cropedImg"
-          :canMoveBox="true"
-          :autoCrop="true"
-          :fixed="true"
-          :fixedNumber="[autoCropWidth,autoCropHeight]"
-          :autoCropWidth="autoCropWidth"
-          :autoCropHeight="autoCropHeight"
-        ></vueCropper>
+          :guides="true"
+          :view-mode="0"
+          drag-mode="move"
+          :aspectRatio="autoCropWidth/autoCropHeight"
+          :auto-crop-area="0.5"
+          :min-container-width="250"
+          :min-container-height="180"
+          :background="true"
+          :rotatable="true"
+          :src="cropedImg"
+          alt="Source Image"
+          :img-style="{ 'width': '400px', 'height': '300px' }"
+        ></vue-cropper>
         <div class="clearfix icon-box">
-          <i @click="handleChangeScale(1)" class="el-icon-circle-plus-outline icon-plus icon f-l"></i>
-          <i @click="handleChangeScale(-1)" class="el-icon-remove-outline icon-outline icon f-l"></i>
-          <i @click="$refs.cropper.rotateLeft()" class="el-icon-refresh-left icon f-l"></i>
+          <i class="el-icon-circle-plus-outline icon-plus icon f-l"></i>
+          <i class="el-icon-remove-outline icon-outline icon f-l"></i>
+          <i @click="$refs.cropper.rotate(-90)" class="el-icon-refresh-left icon f-l"></i>
         </div>
       </div>
       <span slot="footer">
-        <el-button @click=" visible= false">取 消</el-button>
+        <el-button @click="visible = false">取 消</el-button>
         <el-button type="primary" @click="handleCropper">确 定</el-button>
       </span>
     </el-dialog>
@@ -58,9 +64,14 @@
 </template>
 <script>
 import axios from "axios";
+import VueCropper from "vue-cropperjs";
+import "cropperjs/dist/cropper.css";
 
 export default {
   name: "imageUpload",
+  components: {
+    VueCropper
+  },
   data() {
     return {
       expVisible: false,
@@ -122,9 +133,9 @@ export default {
       type: String,
       default: "url"
     },
-    uploadKey:{
-      type:String,
-      default:"file"
+    uploadKey: {
+      type: String,
+      default: "file"
     }
   },
   watch: {
@@ -155,7 +166,7 @@ export default {
     },
     handleChangeScale(num) {
       num = num || 1;
-      this.$refs.cropper.changeScale(num);
+      this.$refs.cropper.relativeZoom(num);
     },
     clearValue() {
       this.$refs[`avatarInput${this.name}`].value = "";
@@ -165,27 +176,28 @@ export default {
       if (file) {
         const isLt8M = file.size / 1024 / 1024 < this.maxSize;
         if (!isLt8M) {
-          this.$message.error(`上传的图片大小不能超过 ${this.maxSize}MB!`);
+          alert(`上传的图片大小不能超过 ${this.maxSize}MB!`);
           return false;
         }
         // 文件对象
         if (this.isCropper) {
-          var reader = new FileReader();
-          reader.onload = e => {
-            let data;
-            if (typeof e.target.result === "object") {
-              // 把Array Buffer转化为blob 如果是base64不需要
-              data = window.URL.createObjectURL(new Blob([e.target.result]));
-            } else {
-              data = e.target.result;
-            }
-            this.cropedImg = data;
-          };
+          // document.getElementsByTagName("dialog")[0].showModal();
           this.visible = true;
-          // 转化为base64
-          reader.readAsDataURL(file);
-        } else {
-          this.handleUpload(file);
+          if (!file.type.includes("image/")) {
+            alert("Please select an image file");
+            return;
+          }
+          if (typeof FileReader === "function") {
+            const reader = new FileReader();
+            reader.onload = event => {
+              this.cropedImg = event.target.result;
+              // rebuild cropperjs with the updated source
+              this.$refs.cropper.replace(event.target.result);
+            };
+            reader.readAsDataURL(file);
+          } else {
+            this.handleUpload(file);
+          }
         }
       }
     },
@@ -200,17 +212,44 @@ export default {
           this.$emit("input", data[this.resUrlKey]);
           this.$emit("uploadSuccess", data, this.name);
         }
-      }).catch(res => {
-          console.log(res);
-          this.$emit("uploadFailure",this.name);
       });
     },
     handleCropper() {
       this.visible = false;
-      this.$refs.cropper.getCropBlob(async data => {
-        this.handleUpload(data);
-        this.$emit("cropperSuccess", window.URL.createObjectURL(data));
-      });
+      let data = this.$refs.cropper.getCroppedCanvas().toDataURL();
+      let blob = this.processData(data);
+      // this.$emit("cropperSuccess", window.URL.createObjectURL(data));
+      this.handleUpload(blob);
+      console.log(blob);
+    },
+    processData(dataUrl) {
+      var binaryString = window.atob(dataUrl.split(",")[1]);
+      var arrayBuffer = new ArrayBuffer(binaryString.length);
+      var intArray = new Uint8Array(arrayBuffer);
+      for (var i = 0, j = binaryString.length; i < j; i++) {
+        intArray[i] = binaryString.charCodeAt(i);
+      }
+
+      var data = [intArray],
+        blob;
+
+      try {
+        blob = new Blob(data);
+      } catch (e) {
+        window.BlobBuilder =
+          window.BlobBuilder ||
+          window.WebKitBlobBuilder ||
+          window.MozBlobBuilder ||
+          window.MSBlobBuilder;
+        if (e.name === "TypeError" && window.BlobBuilder) {
+          var builder = new BlobBuilder();
+          builder.append(arrayBuffer);
+          blob = builder.getBlob(imgType); // imgType为上传文件类型，即 file.type
+        } else {
+          console.log("版本过低，不支持上传图片");
+        }
+      }
+      return blob;
     },
     handleRemove() {
       this.isShowCover = false;
@@ -290,7 +329,7 @@ export default {
 }
 .cropper-box {
   width: 700px;
-  height: 300px;
+  /* height: 300px; */
 }
 .cropper-box .icon-box {
   margin-top: 10px;
@@ -299,18 +338,21 @@ export default {
 .cropper-box .icon-box .icon {
   font-size: 22px;
   color: #409eff;
-  display: inline-block;
+  display: block;
   margin-right: 10px;
   cursor: pointer;
+  width: 26px;
+  float: left;
 }
 .pic-example-btn {
   color: #409eff;
   cursor: pointer;
 }
-.el-icon-upload2{
+.el-icon-upload2 {
   font-size: 30px;
 }
-.el-icon-upload2,.el-icon-close{
+.el-icon-upload2,
+.el-icon-close {
   color: #ddd;
 }
 </style>
