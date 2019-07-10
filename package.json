@@ -1,6 +1,6 @@
 {
-  "name": "iwen-image-upload",
-  "version": "0.1.4",
+  "name": "iwen-image-upload1",
+  "version": "0.1.11",
   "private": false,
   "main": "./dist/imageUpload.js",
   "scripts": {
@@ -17,8 +17,8 @@
     "axios": "^0.19.0",
     "core-js": "^2.6.5",
     "element-ui": "^2.10.1",
+    "iwen-image-upload": "^0.1.11",
     "vue": "^2.6.10",
-    "vue-cropper": "^0.4.9",
     "vue-cropperjs": "^4.0.0"
   },
   "devDependencies": {

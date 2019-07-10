@@ -1,38 +1,43 @@
 <template>
   <div class="upload-box">
-    <div class="avatar-box" :style="avatarStyleObj">
-      <input
-        type="file"
-        class="input-file"
-        :style="`width:${imgWidth};height:${imgHeight};`"
-        :name="name"
-        @mouseover="handleShowCover()"
-        :ref="`avatarInput${name}`"
-        @change="changeImage($event)"
-        accept="image/gif, image/jpeg, image/jpg, image/png"
-      />
-      <img v-if="value!=''" :src="value" alt :style="avatarStyleObj" />
-      <div v-else class="add-box" :style="avatarStyleObj">
+    <div class="avatar-box">
+      <ul v-if="value.length>0">
+        <li v-for="(item,index) in value" :key="index" @mouseenter="hoverIndex=index">
+          <img :src="item" :style="avatarStyleObj" alt />
+          <div
+            class="cover-box"
+            :style="avatarStyleObj"
+            @mouseleave="hoverIndex=null"
+            v-if="hoverIndex==index"
+          >
+            <i v-if="allowDelete" class="el-icon-delete close" @click="handleRemove(index)"></i>
+          </div>
+        </li>
+      </ul>
+      <div
+        class="add-box"
+        v-if="maxCount > value.length"
+        @click="handleClick"
+        :style="avatarStyleObj"
+      >
+        <input
+          type="file"
+          class="input-file"
+          :style="avatarStyleObj"
+          :name="name"
+          :ref="`inputFile${name}`"
+          @change="changeImage($event)"
+          :disabled="disabled"
+          accept="image/*"
+        />
         <i v-if="isLoading" class="el-icon-loading"></i>
         <i v-if="!isLoading" class="el-icon-plus"></i>
-      </div>
-      <div
-        @mouseleave="isShowCover=false"
-        class="cover-box"
-        :style="avatarStyleObj"
-        v-if="isShowCover"
-      >
-        <div @click="handleInput">
-          <i class="el-icon-upload2"></i>
-        </div>
-        <i v-if="allowDelete" class="el-icon-close close" @click="handleRemove"></i>
       </div>
     </div>
     <div class="tip">
       <p v-html="tip"></p>
     </div>
     <el-dialog title="裁剪图片" :visible.sync="visible" width="750px" :append-to-body="true">
-      <h2>裁剪图片</h2>
       <div class="cropper-box">
         <vue-cropper
           ref="cropper"
@@ -50,8 +55,8 @@
           :img-style="{ 'width': '400px', 'height': '300px' }"
         ></vue-cropper>
         <div class="clearfix icon-box">
-          <i class="el-icon-circle-plus-outline icon-plus icon f-l"></i>
-          <i class="el-icon-remove-outline icon-outline icon f-l"></i>
+          <i @click="$refs.cropper.relativeZoom(0.1)" class="el-icon-circle-plus-outline icon-plus icon f-l"></i>
+          <i @click="$refs.cropper.relativeZoom(-0.1)" class="el-icon-remove-outline icon-outline icon f-l"></i>
           <i @click="$refs.cropper.rotate(-90)" class="el-icon-refresh-left icon f-l"></i>
         </div>
       </div>
@@ -79,14 +84,19 @@ export default {
       isLoading: false,
       cropedImg: "",
       visible: false,
-      isShowCover: false
+      hoverIndex: null,
+      imgType: ""
     };
   },
   props: {
-    value: String,
+    value: Array,
     allowDelete: {
       type: Boolean,
       default: true
+    },
+    disabled: {
+      type: Boolean,
+      default: false
     },
     imgWidth: {
       type: [String, Number],
@@ -98,7 +108,7 @@ export default {
     },
     tip: {
       type: [String, Number],
-      default: ""
+      default: "1234567"
     },
     name: {
       type: [String, Number],
@@ -136,6 +146,10 @@ export default {
     uploadKey: {
       type: String,
       default: "file"
+    },
+    maxCount: {
+      type: Number,
+      default: 1
     }
   },
   watch: {
@@ -161,109 +175,100 @@ export default {
     }
   },
   methods: {
-    handleInput() {
-      this.$refs[`avatarInput${this.name}`].click();
+    handleClick() {
+      this.$refs[`inputFile${this.name}`].click();
     },
+
     handleChangeScale(num) {
       num = num || 1;
       this.$refs.cropper.relativeZoom(num);
     },
+
+    //clear input filie value
     clearValue() {
-      this.$refs[`avatarInput${this.name}`].value = "";
+      let $rf = this.$refs[`inputFile${this.name}`];
+      if ($rf) {
+        $rf.value = "";
+      }
     },
+
+    //input filie change
     changeImage: function(e) {
       let file = e.target.files[0];
+      this.imgType = file.type;
       if (file) {
         const isLt8M = file.size / 1024 / 1024 < this.maxSize;
         if (!isLt8M) {
-          alert(`上传的图片大小不能超过 ${this.maxSize}MB!`);
+          this.$message.warning(`上传的图片大小不能超过 ${this.maxSize}MB!`);
           return false;
         }
-        // 文件对象
         if (this.isCropper) {
-          // document.getElementsByTagName("dialog")[0].showModal();
           this.visible = true;
           if (!file.type.includes("image/")) {
-            alert("Please select an image file");
+            this.$message.warning("请选择图片文件");
             return;
           }
           if (typeof FileReader === "function") {
             const reader = new FileReader();
             reader.onload = event => {
               this.cropedImg = event.target.result;
-              // rebuild cropperjs with the updated source
               this.$refs.cropper.replace(event.target.result);
             };
             reader.readAsDataURL(file);
           } else {
             this.handleUpload(file);
           }
+        } else {
+          this.handleUpload(file);
         }
       }
     },
+
+    //handle image file upload
     handleUpload(file) {
       this.isLoading = true;
       let formData = new FormData();
       formData.append(this.uploadKey, file);
       this.postFile(formData).then(res => {
         this.isLoading = false;
-        if (res.status == 200 && res.data) {
-          let data = res.data;
-          this.$emit("input", data[this.resUrlKey]);
-          this.$emit("uploadSuccess", data, this.name);
+        if (res.status == 200) {
+          this.$emit("input", [...this.value, res.data[this.resUrlKey]]);
+          this.$emit("uploadSuccess", res[this.resUrlKey], this.name);
         }
       });
     },
+
+    //handle cropper image
     handleCropper() {
       this.visible = false;
       let data = this.$refs.cropper.getCroppedCanvas().toDataURL();
-      let blob = this.processData(data);
-      // this.$emit("cropperSuccess", window.URL.createObjectURL(data));
+      let blob = this.dataURLtoBlob(data);
       this.handleUpload(blob);
-      console.log(blob);
     },
-    processData(dataUrl) {
-      var binaryString = window.atob(dataUrl.split(",")[1]);
-      var arrayBuffer = new ArrayBuffer(binaryString.length);
-      var intArray = new Uint8Array(arrayBuffer);
-      for (var i = 0, j = binaryString.length; i < j; i++) {
-        intArray[i] = binaryString.charCodeAt(i);
-      }
 
-      var data = [intArray],
-        blob;
-
-      try {
-        blob = new Blob(data);
-      } catch (e) {
-        window.BlobBuilder =
-          window.BlobBuilder ||
-          window.WebKitBlobBuilder ||
-          window.MozBlobBuilder ||
-          window.MSBlobBuilder;
-        if (e.name === "TypeError" && window.BlobBuilder) {
-          var builder = new BlobBuilder();
-          builder.append(arrayBuffer);
-          blob = builder.getBlob(imgType); // imgType为上传文件类型，即 file.type
-        } else {
-          console.log("版本过低，不支持上传图片");
-        }
+    //base64 to blob
+    dataURLtoBlob(dataurl) {
+      var arr = dataurl.split(","),
+        mime = arr[0].match(/:(.*?);/)[1],
+        bstr = atob(arr[1]),
+        n = bstr.length,
+        u8arr = new Uint8Array(n);
+      while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
       }
-      return blob;
+      return new Blob([u8arr], { type: mime });
     },
-    handleRemove() {
-      this.isShowCover = false;
+
+    // handle remove image
+    handleRemove(index) {
       this.clearValue();
-      this.$emit("input", "");
+      let fileList = this.value;
+      fileList.splice(index, 1);
+      this.$emit("input", fileList);
       this.$emit("onRemove", this.name);
     },
-    handleShowCover() {
-      if (this.value != "") {
-        this.isShowCover = true;
-      } else {
-        this.isShowCover = false;
-      }
-    },
+
+    // the commone method of post iamge file
     postFile(data) {
       let config = {
         headers: {
@@ -278,31 +283,51 @@ export default {
 };
 </script>
 <style  scope>
+ul {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+}
+p {
+  padding: 0;
+  margin: 0;
+}
+.upload-box .add-box {
+  position: relative;
+  display: inline-block;
+  background-color: #f6f8fb;
+  border: 1px dashed #999;
+}
 .upload-box .avatar-box {
   cursor: pointer;
   position: relative;
   text-align: center;
-  border: 1px dashed #999;
-  background-color: #f6f8fb;
-  font-size: 20px;
-  width: 100%;
+  display: flex;
+}
+.upload-box .avatar-box ul {
+  display: inline-block;
+}
+.upload-box .avatar-box ul li {
+  display: inline-block;
+  margin-right: 15px;
+  position: relative;
 }
 .upload-box .avatar-box .input-file {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
   opacity: 0;
+  position: absolute;
   cursor: pointer;
-  z-index: 2;
+  left: 0;
+  z-index: -1;
 }
 .upload-box .avatar-box .text {
   padding-top: 10px;
   color: lightblue;
 }
-.upload-box .avatar-box .tip {
+.upload-box .tip {
   margin-top: 5px;
   color: #999;
+  text-align: left;
+  font-size: 14px;
 }
 .upload-box .avatar-box .add-box i {
   font-size: 25px;
@@ -314,11 +339,15 @@ export default {
   top: 0;
   line-height: 100%;
   background-color: rgba(51, 51, 51, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 .cover-box .close {
-  position: absolute;
-  right: 0;
-  top: 0;
+  right: 5px;
+  top: 5px;
+  font-size: 18px;
+  color: #fff;
 }
 .cover-box .upload-text {
   color: #fff;
@@ -329,7 +358,6 @@ export default {
 }
 .cropper-box {
   width: 700px;
-  /* height: 300px; */
 }
 .cropper-box .icon-box {
   margin-top: 10px;

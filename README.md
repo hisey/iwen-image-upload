@@ -1,25 +1,22 @@
 # iwen-image-upload
 
-## 基于vue、element、vue-cropper、axios的上传单张图片组件
+## 基于vue、element的上传图片组件
 
 ### 依赖项
-vue 、element ui 、vue-cropper
+vue 、element ui
 
 ### 安装
 ```bash
 $ npm i iwen-image-upload --save-dev
 ```
 ### 使用
-需全局注入element ui 、vue-cropper
+需全局注入element ui
 ```javascript
 // src/main.js
-
 import Vue from "vue";
 import App from "./App.vue";
 import "element-ui/lib/theme-chalk/index.css";
 import ElementUI from "element-ui";
-import vueCropper from "vue-cropper";
-Vue.use(vueCropper)
 Vue.use(ElementUI);
 ```
 ```
