@@ -1,20 +1,7 @@
 <template>
   <div class="upload-box">
     <div class="avatar-box">
-      <ul v-if="value.length>0">
-        <li v-for="(item,index) in value" :key="index" @mouseenter="hoverIndex=index">
-          <img :src="item" :style="avatarStyleObj" alt />
-          <div
-            class="cover-box"
-            :style="avatarStyleObj"
-            @mouseleave="hoverIndex=null"
-            v-if="hoverIndex==index"
-          >
-            <i v-if="allowDelete" class="el-icon-delete close" @click="handleRemove(index)"></i>
-          </div>
-        </li>
-      </ul>
-      <div
+      <!-- <div
         class="add-box"
         v-if="maxCount > value.length"
         @click="handleClick"
@@ -32,7 +19,45 @@
         />
         <i v-if="isLoading" class="el-icon-loading"></i>
         <i v-if="!isLoading" class="el-icon-plus"></i>
-      </div>
+      </div>-->
+      <ul class="clearfix">
+        <li
+          class="add-box f-l"
+          v-if="maxCount > value.length"
+          @click="handleClick"
+          :style="avatarStyleObj"
+        >
+          <input
+            type="file"
+            class="input-file"
+            :style="avatarStyleObj"
+            :name="name"
+            :ref="`inputFile${name}`"
+            @change="changeImage($event)"
+            :disabled="disabled"
+            accept="image/*"
+          />
+          <i v-if="isLoading" class="el-icon-loading"></i>
+          <i v-if="!isLoading" class="el-icon-plus"></i>
+        </li>
+        <li
+          class="f-l img-box"
+          v-for="(item,index) in value"
+          :key="index"
+          @mouseenter="hoverIndex=index"
+        >
+          <span class="cover-tag" v-if="index==0&&hasCover">封面</span>
+          <img :src="item" :style="avatarStyleObj" alt />
+          <div
+            class="cover-box"
+            :style="avatarStyleObj"
+            @mouseleave="hoverIndex=null"
+            v-if="hoverIndex==index"
+          >
+            <i v-if="allowDelete" class="el-icon-delete close" @click="handleRemove(index)"></i>
+          </div>
+        </li>
+      </ul>
     </div>
     <div class="tip">
       <p v-html="tip"></p>
@@ -55,8 +80,14 @@
           :img-style="{ 'width': '400px', 'height': '300px' }"
         ></vue-cropper>
         <div class="clearfix icon-box">
-          <i @click="$refs.cropper.relativeZoom(0.1)" class="el-icon-circle-plus-outline icon-plus icon f-l"></i>
-          <i @click="$refs.cropper.relativeZoom(-0.1)" class="el-icon-remove-outline icon-outline icon f-l"></i>
+          <i
+            @click="$refs.cropper.relativeZoom(0.1)"
+            class="el-icon-circle-plus-outline icon-plus icon f-l"
+          ></i>
+          <i
+            @click="$refs.cropper.relativeZoom(-0.1)"
+            class="el-icon-remove-outline icon-outline icon f-l"
+          ></i>
           <i @click="$refs.cropper.rotate(-90)" class="el-icon-refresh-left icon f-l"></i>
         </div>
       </div>
@@ -68,12 +99,12 @@
   </div>
 </template>
 <script>
-import axios from "axios";
+import commonService from "@/services/commonService";
 import VueCropper from "vue-cropperjs";
 import "cropperjs/dist/cropper.css";
 
 export default {
-  name: "imageUpload",
+  name: "multiplePicUpload",
   components: {
     VueCropper
   },
@@ -84,12 +115,15 @@ export default {
       isLoading: false,
       cropedImg: "",
       visible: false,
-      hoverIndex: null,
-      imgType: ""
+      hoverIndex: null
     };
   },
   props: {
     value: Array,
+    hasCover: {
+      type: Boolean,
+      default: true
+    },
     allowDelete: {
       type: Boolean,
       default: true
@@ -108,7 +142,7 @@ export default {
     },
     tip: {
       type: [String, Number],
-      default: "1234567"
+      default: ""
     },
     name: {
       type: [String, Number],
@@ -178,12 +212,6 @@ export default {
     handleClick() {
       this.$refs[`inputFile${this.name}`].click();
     },
-
-    handleChangeScale(num) {
-      num = num || 1;
-      this.$refs.cropper.relativeZoom(num);
-    },
-
     //clear input filie value
     clearValue() {
       let $rf = this.$refs[`inputFile${this.name}`];
@@ -195,7 +223,6 @@ export default {
     //input filie change
     changeImage: function(e) {
       let file = e.target.files[0];
-      this.imgType = file.type;
       if (file) {
         const isLt8M = file.size / 1024 / 1024 < this.maxSize;
         if (!isLt8M) {
@@ -229,7 +256,7 @@ export default {
       this.isLoading = true;
       let formData = new FormData();
       formData.append(this.uploadKey, file);
-      this.postFile(formData).then(res => {
+      commonService.uploadImg(formData).then(res => {
         this.isLoading = false;
         if (res.status == 200) {
           this.$emit("input", [...this.value, res.data[this.resUrlKey]]);
@@ -241,7 +268,9 @@ export default {
     //handle cropper image
     handleCropper() {
       this.visible = false;
-      let data = this.$refs.cropper.getCroppedCanvas().toDataURL();
+      let data = this.$refs.cropper
+        .getCroppedCanvas()
+        .toDataURL("image/jpeg", 0.7);
       let blob = this.dataURLtoBlob(data);
       this.handleUpload(blob);
     },
@@ -266,23 +295,11 @@ export default {
       fileList.splice(index, 1);
       this.$emit("input", fileList);
       this.$emit("onRemove", this.name);
-    },
-
-    // the commone method of post iamge file
-    postFile(data) {
-      let config = {
-        headers: {
-          "Content-Type": "multipart/form-data"
-        }
-      };
-      return axios.post(this.action, data, config).then(res => {
-        return Promise.resolve(res.data);
-      });
     }
   }
 };
 </script>
-<style  scope>
+<style  scoped>
 ul {
   list-style-type: none;
   padding: 0;
@@ -293,13 +310,15 @@ p {
   margin: 0;
 }
 .upload-box .add-box {
+  cursor: pointer;
   position: relative;
   display: inline-block;
   background-color: #f6f8fb;
   border: 1px dashed #999;
+  margin-right: 15px;
 }
 .upload-box .avatar-box {
-  cursor: pointer;
+  /* cursor: pointer; */
   position: relative;
   text-align: center;
   display: flex;
@@ -307,10 +326,29 @@ p {
 .upload-box .avatar-box ul {
   display: inline-block;
 }
+.upload-box .avatar-box ul .img-box {
+  border: 1px dashed #fff;
+  position: relative;
+}
+.upload-box .avatar-box ul .img-box .cover-tag {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 40px;
+  height: 20px;
+  background: rgba(0, 0, 0, 1);
+  opacity: 0.6;
+  text-align: center;
+  color: #fff;
+  font-size: 12px;
+  display: block;
+  line-height: 22px;
+}
 .upload-box .avatar-box ul li {
   display: inline-block;
   margin-right: 15px;
   position: relative;
+  margin-top: 10px;
 }
 .upload-box .avatar-box .input-file {
   opacity: 0;
@@ -327,7 +365,8 @@ p {
   margin-top: 5px;
   color: #999;
   text-align: left;
-  font-size: 14px;
+  font-size: 12px;
+  line-height: 16px;
 }
 .upload-box .avatar-box .add-box i {
   font-size: 25px;
@@ -344,6 +383,7 @@ p {
   align-items: center;
 }
 .cover-box .close {
+  cursor: pointer;
   right: 5px;
   top: 5px;
   font-size: 18px;
